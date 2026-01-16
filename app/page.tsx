@@ -83,9 +83,19 @@ function HomeInner({ roomCode }: { roomCode: string }) {
 
   const allProjects = useMemo(() => {
     const map = new Map<string, Project>();
+    // LocalStorage 프로젝트 우선 (같은 slug면 덮어씀)
     for (const p of userProjects) map.set(p.slug, p);
-    const base = remoteProjects ?? projects;
-    for (const p of base) if (!map.has(p.slug)) map.set(p.slug, p);
+    // Supabase 프로젝트 추가 (LocalStorage에 없는 것만)
+    const base = remoteProjects ?? [];
+    for (const p of base) {
+      if (!map.has(p.slug)) {
+        map.set(p.slug, p);
+      }
+    }
+    // Supabase에 데이터가 없으면 기본 프로젝트 표시
+    if (map.size === 0 && !remoteProjects) {
+      for (const p of projects) map.set(p.slug, p);
+    }
     return Array.from(map.values());
   }, [userProjects, remoteProjects]);
 

@@ -138,10 +138,18 @@ export async function upsertProject(roomCode: RoomCode, project: Project) {
     .upsert(payload, { onConflict: 'room_code,slug' })
     .select('*')
     .single();
-  if (result.error) throw result.error;
+  if (result.error) {
+    console.error('❌ projects upsert 실패:', result.error);
+    throw result.error;
+  }
 
   const saved = result.data as DbProject;
+  if (!saved || !saved.id) {
+    console.error('❌ projects 저장 후 데이터 없음:', result);
+    throw new Error('프로젝트 저장 후 ID를 받지 못했어요.');
+  }
   const projectId = saved.id;
+  console.log('✅ 프로젝트 저장 완료, ID:', projectId);
 
   // memories는 단순화를 위해 "전체 교체" 방식 (동시 편집 충돌은 last-write-wins)
   if (existing?.id) {

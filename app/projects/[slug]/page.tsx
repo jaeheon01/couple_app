@@ -75,11 +75,15 @@ function ProjectDetailPageInner({ roomCode }: { roomCode: string }) {
     
     // Supabase 동기화
     try {
+      console.log('💾 Supabase 저장 시작...', { slug: draft.slug, memoriesCount: draft.memories.length });
       await upsertProject(roomCode, draft);
       console.log('✅ Supabase 동기화 성공');
-    } catch (e) {
+      alert('✅ 저장 완료! 다른 기기에서도 보일 거예요.');
+    } catch (e: any) {
       console.error('❌ Supabase 동기화 실패:', e);
-      alert('Supabase 동기화에 실패했어요. 다른 기기에서 보이지 않을 수 있어요. 콘솔을 확인해주세요.');
+      console.error('에러 상세:', JSON.stringify(e, null, 2));
+      const errorMsg = e?.message || String(e);
+      alert(`❌ Supabase 동기화 실패:\n${errorMsg}\n\n콘솔을 확인해주세요.`);
       // LocalStorage에는 저장되었으므로 계속 진행
     }
     

@@ -116,12 +116,15 @@ function NewProjectPageInner({ roomCode }: { roomCode: string }) {
     
     // Supabase 동기화
     try {
+      console.log('💾 Supabase 저장 시작...', { slug: project.slug, memoriesCount: project.memories.length });
       await upsertProject(roomCode, project);
       console.log('✅ Supabase 동기화 성공');
-    } catch (e) {
+    } catch (e: any) {
       console.error('❌ Supabase 동기화 실패:', e);
+      console.error('에러 상세:', JSON.stringify(e, null, 2));
+      const errorMsg = e?.message || String(e);
       const proceed = confirm(
-        'Supabase 동기화에 실패했어요. 다른 기기에서 보이지 않을 수 있어요.\n\n계속 진행할까요?'
+        `❌ Supabase 동기화 실패:\n${errorMsg}\n\n다른 기기에서 보이지 않을 수 있어요.\n\n계속 진행할까요?`
       );
       if (!proceed) return;
     }
