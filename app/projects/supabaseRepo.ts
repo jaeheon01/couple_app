@@ -57,10 +57,9 @@ export async function ensureRoom(code: RoomCode) {
   const supabase = getSupabaseClient();
   if (!supabase) throw new Error('Supabase 환경변수가 설정되지 않았어요.');
 
-  // upsert rooms
-  await supabase
-    .from('rooms')
-    .upsert({ code } as { code: string }, { onConflict: 'code' })
+  // upsert rooms - 타입 에러 방지를 위해 any 사용
+  await (supabase.from('rooms') as any)
+    .upsert({ code }, { onConflict: 'code' })
     .select('code')
     .single();
 }
@@ -101,13 +100,13 @@ export async function upsertProject(roomCode: RoomCode, project: Project) {
   const supabase = getSupabaseClient();
   if (!supabase) throw new Error('Supabase 환경변수가 설정되지 않았어요.');
 
-  const { data: existing, error: e0 } = await supabase
-    .from('projects')
+  const existingResult = await (supabase.from('projects') as any)
     .select('*')
     .eq('room_code', roomCode)
     .eq('slug', project.slug)
     .maybeSingle();
-  if (e0) throw e0;
+  if (existingResult.error) throw existingResult.error;
+  const existing = existingResult.data as DbProject | null;
 
   const payload = {
     room_code: roomCode,
@@ -121,14 +120,14 @@ export async function upsertProject(roomCode: RoomCode, project: Project) {
     story: project.story ?? null,
   };
 
-  const { data: saved, error: e1 } = await supabase
-    .from('projects')
+  const result = await (supabase.from('projects') as any)
     .upsert(payload, { onConflict: 'room_code,slug' })
     .select('*')
     .single();
-  if (e1) throw e1;
+  if (result.error) throw result.error;
 
-  const projectId = (saved as DbProject).id;
+  const saved = result.data as DbProject;
+  const projectId = saved.id;
 
   // memories는 단순화를 위해 "전체 교체" 방식 (동시 편집 충돌은 last-write-wins)
   if (existing?.id) {
@@ -144,7 +143,7 @@ export async function upsertProject(roomCode: RoomCode, project: Project) {
   }));
 
   if (memRows.length) {
-    const { error: e2 } = await supabase.from('memories').insert(memRows);
+    const { error: e2 } = await (supabase.from('memories') as any).insert(memRows);
     if (e2) throw e2;
   }
 
