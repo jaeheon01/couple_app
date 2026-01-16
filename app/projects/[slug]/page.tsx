@@ -8,6 +8,8 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Project } from '../data';
 import { projects } from '../data';
 import { loadUserProjects, upsertUserProject } from '../storage';
+import { upsertProject } from '../supabaseRepo';
+import RoomGate from '../RoomGate';
 
 const MAX_IMAGE_BYTES = 2_500_000; // 2.5MB (dataURL은 더 커짐) - 너무 큰 파일은 브라우저 저장에 부담
 
@@ -20,7 +22,7 @@ async function fileToDataUrl(file: File) {
   });
 }
 
-export default function ProjectDetailPage() {
+function ProjectDetailPageInner({ roomCode }: { roomCode: string }) {
   const params = useParams<{ slug: string }>();
   const slug = params?.slug;
   const [userProjects, setUserProjects] = useState<Project[]>([]);
@@ -51,9 +53,18 @@ export default function ProjectDetailPage() {
     setDraft(project);
   }, [project]);
 
-  const saveDraft = () => {
+  const saveDraft = async () => {
     if (!draft) return;
     upsertUserProject(draft); // 기본 프로젝트도 override로 저장됨
+    
+    // Supabase 동기화
+    try {
+      await upsertProject(roomCode, draft);
+    } catch (e) {
+      console.error('Supabase 동기화 실패:', e);
+      // LocalStorage에는 저장되었으므로 계속 진행
+    }
+    
     setUserProjects(loadUserProjects());
     setIsEditing(false);
   };
@@ -443,5 +454,9 @@ export default function ProjectDetailPage() {
       </main>
     </div>
   );
+}
+
+export default function ProjectDetailPage() {
+  return <RoomGate>{(roomCode) => <ProjectDetailPageInner roomCode={roomCode} />}</RoomGate>;
 }
 

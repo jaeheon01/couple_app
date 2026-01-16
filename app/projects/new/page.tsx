@@ -5,6 +5,8 @@ import { useMemo, useRef, useState } from 'react';
 
 import type { Project } from '../data';
 import { slugifyKo, upsertUserProject } from '../storage';
+import { upsertProject } from './supabaseRepo';
+import RoomGate from './RoomGate';
 
 const MAX_IMAGE_BYTES = 2_500_000; // 2.5MB
 
@@ -26,7 +28,7 @@ const gradients = [
   'bg-gradient-to-br from-amber-300 to-rose-400',
 ];
 
-export default function NewProjectPage() {
+function NewProjectPageInner({ roomCode }: { roomCode: string }) {
   const [title, setTitle] = useState('');
   const [slug, setSlug] = useState('');
   const [summary, setSummary] = useState('');
@@ -84,7 +86,7 @@ export default function NewProjectPage() {
     }
   };
 
-  const onSave = () => {
+  const onSave = async (roomCode: string) => {
     const safeTitle = title.trim() || '새 추억';
     const safeSlug = computedSlug;
     const safeMemories = memories
@@ -111,6 +113,15 @@ export default function NewProjectPage() {
     };
 
     upsertUserProject(project);
+    
+    // Supabase 동기화
+    try {
+      await upsertProject(roomCode, project);
+    } catch (e) {
+      console.error('Supabase 동기화 실패:', e);
+      // LocalStorage에는 저장되었으므로 계속 진행
+    }
+    
     window.location.href = `/projects/${project.slug}`;
   };
 
@@ -310,7 +321,7 @@ export default function NewProjectPage() {
                   </Link>
                   <button
                     type="button"
-                    onClick={onSave}
+                    onClick={() => onSave(roomCode)}
                     className="rounded-full bg-rose-500 px-6 py-3 font-semibold text-white hover:bg-rose-600"
                   >
                     저장하고 열기
@@ -329,5 +340,9 @@ export default function NewProjectPage() {
       </main>
     </div>
   );
+}
+
+export default function NewProjectPage() {
+  return <RoomGate>{(roomCode) => <NewProjectPageInner roomCode={roomCode} />}</RoomGate>;
 }
 
