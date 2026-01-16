@@ -7,9 +7,9 @@ import FadeInSection from './components/FadeInSection';
 import PetalFall from './components/PetalFall';
 import { projects } from './projects/data';
 import type { Project } from './projects/data';
-import { loadUserProjects } from './projects/storage';
+import { deleteUserProject, loadUserProjects } from './projects/storage';
 import RoomGate from './projects/RoomGate';
-import { listProjects, subscribeRoom } from './projects/supabaseRepo';
+import { deleteProject, listProjects, subscribeRoom } from './projects/supabaseRepo';
 
 type CoupleMessages = {
   jaeheon: string;
@@ -119,6 +119,45 @@ function HomeInner({ roomCode }: { roomCode: string }) {
     console.log('📋 allProjects:', result.length, '개', result.map(p => p.slug));
     return result;
   }, [userProjects, remoteProjects]);
+
+  const handleDeleteProject = async (slug: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const project = allProjects.find(p => p.slug === slug);
+    if (!project) return;
+    
+    if (!confirm(`"${project.title}" 추억을 정말 삭제하시겠어요?\n\n삭제된 추억은 복구할 수 없어요.`)) {
+      return;
+    }
+
+    try {
+      // Supabase에서 삭제
+      await deleteProject(roomCode, slug);
+      console.log('✅ Supabase에서 프로젝트 삭제 완료');
+      
+      // LocalStorage에서 삭제
+      deleteUserProject(slug);
+      
+      // 상태 업데이트
+      setUserProjects(loadUserProjects());
+      
+      // Supabase에서 최신 데이터 다시 불러오기
+      try {
+        const updated = await listProjects(roomCode);
+        console.log('🔄 삭제 후 Supabase 데이터 새로고침:', updated.length, '개');
+        setRemoteProjects(updated);
+      } catch (e) {
+        console.error('❌ 삭제 후 데이터 새로고침 실패:', e);
+      }
+      
+      alert('✅ 추억이 삭제되었어요.');
+    } catch (e: any) {
+      console.error('❌ 프로젝트 삭제 실패:', e);
+      const errorMsg = e?.message || String(e);
+      alert(`❌ 삭제 실패:\n${errorMsg}\n\n콘솔을 확인해주세요.`);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-violet-50">
@@ -249,10 +288,11 @@ function HomeInner({ roomCode }: { roomCode: string }) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {allProjects.map((project, idx) => (
               <FadeInSection key={project.slug} delay={idx * 100}>
-                <Link
-                  href={`/projects/${project.slug}`}
-                  className="block bg-white/80 backdrop-blur rounded-xl shadow-lg hover:shadow-2xl transition-shadow duration-300 overflow-hidden group ring-1 ring-black/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-400 focus-visible:ring-offset-2 focus-visible:ring-offset-rose-50"
-                >
+                <div className="relative group">
+                  <Link
+                    href={`/projects/${project.slug}`}
+                    className="block bg-white/80 backdrop-blur rounded-xl shadow-lg hover:shadow-2xl transition-shadow duration-300 overflow-hidden ring-1 ring-black/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-400 focus-visible:ring-offset-2 focus-visible:ring-offset-rose-50"
+                  >
                   <div className="relative h-64 md:h-80 overflow-hidden">
                     {project.heroImage ? (
                       project.heroImage.startsWith('data:') ? (
@@ -320,6 +360,29 @@ function HomeInner({ roomCode }: { roomCode: string }) {
                     </div>
                   </div>
                 </Link>
+                <button
+                  type="button"
+                  onClick={(e) => handleDeleteProject(project.slug, e)}
+                  className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-red-500 hover:bg-red-600 text-white rounded-full p-2 shadow-lg z-10"
+                  aria-label="삭제"
+                  title="추억 삭제"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                    />
+                  </svg>
+                </button>
+              </div>
               </FadeInSection>
             ))}
 

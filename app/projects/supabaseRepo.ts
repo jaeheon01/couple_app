@@ -232,6 +232,56 @@ export async function upsertProject(roomCode: RoomCode, project: Project) {
   return projectId;
 }
 
+export async function deleteProject(roomCode: RoomCode, slug: string) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error('Supabase 환경변수가 설정되지 않았어요.');
+
+  console.log(`🗑️ 프로젝트 삭제 시작: ${slug}, room_code: ${roomCode}`);
+
+  // 1. 프로젝트 조회
+  const { data: project, error: e1 } = await (supabase.from('projects') as any)
+    .select('id')
+    .eq('room_code', roomCode)
+    .eq('slug', slug)
+    .maybeSingle();
+
+  if (e1) {
+    console.error('❌ 프로젝트 조회 실패:', e1);
+    throw new Error(`프로젝트 조회 실패: ${e1.message || JSON.stringify(e1)}`);
+  }
+
+  if (!project) {
+    console.log('⚠️ 삭제할 프로젝트가 Supabase에 없음 (이미 삭제되었거나 없음)');
+    return; // 이미 삭제되었거나 없으면 성공으로 처리
+  }
+
+  const projectId = project.id;
+
+  // 2. memories 삭제 (CASCADE로 자동 삭제되지만 명시적으로 삭제)
+  const { error: e2 } = await (supabase.from('memories') as any)
+    .delete()
+    .eq('project_id', projectId);
+  
+  if (e2) {
+    console.error('❌ memories 삭제 실패:', e2);
+    // memories 삭제 실패해도 프로젝트 삭제는 계속 진행
+  } else {
+    console.log('✅ memories 삭제 완료');
+  }
+
+  // 3. 프로젝트 삭제
+  const { error: e3 } = await (supabase.from('projects') as any)
+    .delete()
+    .eq('id', projectId);
+
+  if (e3) {
+    console.error('❌ 프로젝트 삭제 실패:', e3);
+    throw new Error(`프로젝트 삭제 실패: ${e3.message || JSON.stringify(e3)}`);
+  }
+
+  console.log('✅ 프로젝트 삭제 완료');
+}
+
 export async function uploadMemoryImage(roomCode: RoomCode, file: File) {
   const supabase = getSupabaseClient();
   if (!supabase) throw new Error('Supabase 환경변수가 설정되지 않았어요.');

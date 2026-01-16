@@ -7,8 +7,8 @@ import { useEffect, useMemo, useState } from 'react';
 
 import type { Project } from '../data';
 import { projects } from '../data';
-import { loadUserProjects, upsertUserProject } from '../storage';
-import { listProjects, upsertProject } from '../supabaseRepo';
+import { deleteUserProject, loadUserProjects, upsertUserProject } from '../storage';
+import { deleteProject, listProjects, upsertProject } from '../supabaseRepo';
 import RoomGate from '../RoomGate';
 
 const MAX_IMAGE_BYTES = 2_500_000; // 2.5MB (dataURL은 더 커짐) - 너무 큰 파일은 브라우저 저장에 부담
@@ -214,13 +214,42 @@ function ProjectDetailPageInner({ roomCode }: { roomCode: string }) {
           {project ? (
             <div className="flex items-center gap-2">
               {!isEditing ? (
-                <button
-                  type="button"
-                  onClick={() => setIsEditing(true)}
-                  className="rounded-full bg-white/70 backdrop-blur px-4 py-2 text-sm font-semibold text-gray-800 ring-1 ring-black/5 hover:bg-white"
-                >
-                  편집
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditing(true)}
+                    className="rounded-full bg-white/70 backdrop-blur px-4 py-2 text-sm font-semibold text-gray-800 ring-1 ring-black/5 hover:bg-white"
+                  >
+                    편집
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!confirm(`"${project.title}" 추억을 정말 삭제하시겠어요?\n\n삭제된 추억은 복구할 수 없어요.`)) {
+                        return;
+                      }
+
+                      try {
+                        // Supabase에서 삭제
+                        await deleteProject(roomCode, project.slug);
+                        console.log('✅ Supabase에서 프로젝트 삭제 완료');
+                        
+                        // LocalStorage에서 삭제
+                        deleteUserProject(project.slug);
+                        
+                        // 메인 페이지로 리다이렉트
+                        window.location.href = '/';
+                      } catch (e: any) {
+                        console.error('❌ 프로젝트 삭제 실패:', e);
+                        const errorMsg = e?.message || String(e);
+                        alert(`❌ 삭제 실패:\n${errorMsg}\n\n콘솔을 확인해주세요.`);
+                      }
+                    }}
+                    className="rounded-full bg-red-500 hover:bg-red-600 px-4 py-2 text-sm font-semibold text-white"
+                  >
+                    삭제
+                  </button>
+                </>
               ) : (
                 <>
                   <button
