@@ -1,10 +1,21 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 import type { Project } from '../data';
 import { slugifyKo, upsertUserProject } from '../storage';
+
+const MAX_IMAGE_BYTES = 2_500_000; // 2.5MB
+
+async function fileToDataUrl(file: File) {
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error('파일을 읽을 수 없어요.'));
+    reader.readAsDataURL(file);
+  });
+}
 
 type Memory = Project['memories'][number];
 
@@ -45,6 +56,32 @@ export default function NewProjectPage() {
 
   const onRemoveMemory = (idx: number) => {
     setMemories((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const onUploadPhoto = async (idx: number, files: FileList | null) => {
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    if (!file.type.startsWith('image/')) {
+      alert('이미지 파일만 업로드할 수 있어요.');
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      alert(
+        `이미지가 너무 커요. (최대 ${(MAX_IMAGE_BYTES / 1_000_000).toFixed(1)}MB) 조금 더 작은 파일로 올려주세요.`
+      );
+      return;
+    }
+
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      setMemories((prev) =>
+        prev.map((m, i) => (i === idx ? { ...m, src: dataUrl } : m))
+      );
+    } catch (e) {
+      alert('사진 업로드 중 오류가 발생했어요.');
+      console.error(e);
+    }
   };
 
   const onSave = () => {
@@ -199,17 +236,35 @@ export default function NewProjectPage() {
 
                       <div className="mt-3 grid grid-cols-1 gap-3">
                         <label className="space-y-1">
-                          <div className="text-sm font-medium text-gray-700">이미지 경로/URL</div>
-                          <input
-                            value={m.src}
-                            onChange={(e) =>
-                              setMemories((prev) =>
-                                prev.map((x, i) => (i === idx ? { ...x, src: e.target.value } : x))
-                              )
-                            }
-                            className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-pink-400"
-                            placeholder={`/projects/${computedSlug}/01.jpg 또는 https://...`}
-                          />
+                          <div className="text-sm font-medium text-gray-700">이미지</div>
+                          <div className="flex gap-2">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => onUploadPhoto(idx, e.target.files)}
+                              className="hidden"
+                              id={`photo-upload-${idx}`}
+                            />
+                            <label
+                              htmlFor={`photo-upload-${idx}`}
+                              className="flex-1 rounded-xl border border-black/10 bg-white px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-pink-400 cursor-pointer hover:bg-gray-50 text-center"
+                            >
+                              {m.src && m.src.startsWith('data:') ? '✅ 사진 업로드됨' : '📷 사진 업로드'}
+                            </label>
+                            <input
+                              value={m.src && !m.src.startsWith('data:') ? m.src : ''}
+                              onChange={(e) =>
+                                setMemories((prev) =>
+                                  prev.map((x, i) => (i === idx ? { ...x, src: e.target.value } : x))
+                                )
+                              }
+                              className="flex-1 rounded-xl border border-black/10 bg-white px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-pink-400"
+                              placeholder="또는 URL 입력"
+                            />
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            사진을 업로드하거나, URL/경로를 직접 입력할 수 있어요
+                          </div>
                         </label>
 
                         <label className="space-y-1">
