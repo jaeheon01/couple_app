@@ -22,7 +22,35 @@ export function loadUserProjects(): Project[] {
 
 export function saveUserProjects(projects: Project[]) {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+  
+  // dataURL을 제거한 경량 버전으로 저장 (LocalStorage 용량 절약)
+  const lightweight = projects.map(p => ({
+    ...p,
+    memories: p.memories.map(m => ({
+      ...m,
+      src: m.src.startsWith('data:') ? '' : m.src, // dataURL은 제외
+    })),
+    heroImage: p.heroImage?.startsWith('data:') ? undefined : p.heroImage,
+  }));
+  
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(lightweight));
+  } catch (e: any) {
+    if (e?.name === 'QuotaExceededError') {
+      console.error('❌ LocalStorage 용량 초과 - 데이터를 저장할 수 없어요.');
+      // 기존 데이터를 삭제하고 다시 시도
+      try {
+        window.localStorage.removeItem(STORAGE_KEY);
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(lightweight));
+        console.log('✅ 기존 데이터 삭제 후 저장 성공');
+      } catch (e2) {
+        console.error('❌ LocalStorage 저장 실패:', e2);
+        throw e2;
+      }
+    } else {
+      throw e;
+    }
+  }
 }
 
 export function upsertUserProject(project: Project) {

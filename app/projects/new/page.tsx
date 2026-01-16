@@ -119,23 +119,16 @@ function NewProjectPageInner({ roomCode }: { roomCode: string }) {
       console.log('✅ Supabase 동기화 성공');
       
       // Supabase 저장 성공 시, LocalStorage에는 메타데이터만 저장 (dataURL 제외)
-      const lightweightProject = {
-        ...project,
-        memories: project.memories.map(m => ({
-          ...m,
-          src: m.src.startsWith('data:') ? '' : m.src, // dataURL은 제외
-        })),
-        heroImage: project.heroImage?.startsWith('data:') ? undefined : project.heroImage,
-      };
-      upsertUserProject(lightweightProject);
+      // storage.ts의 saveUserProjects가 자동으로 dataURL을 제거함
+      upsertUserProject(project);
     } catch (e: any) {
       console.error('❌ Supabase 동기화 실패:', e);
       console.error('에러 상세:', JSON.stringify(e, null, 2));
       const errorMsg = e?.message || String(e);
       
-      // Supabase 실패 시에만 LocalStorage에 저장 시도 (용량 초과 가능)
+      // Supabase 실패 시에도 LocalStorage에 저장 시도 (dataURL은 자동으로 제외됨)
       try {
-        upsertUserProject(project);
+        upsertUserProject(project); // storage.ts가 자동으로 dataURL 제거
         const proceed = confirm(
           `⚠️ Supabase 동기화 실패했지만 로컬에는 저장했어요.\n\n에러: ${errorMsg}\n\n다른 기기에서는 보이지 않을 수 있어요.\n\n계속 진행할까요?`
         );
@@ -143,7 +136,7 @@ function NewProjectPageInner({ roomCode }: { roomCode: string }) {
       } catch (storageError: any) {
         if (storageError?.name === 'QuotaExceededError') {
           const proceed = confirm(
-            `❌ 저장 실패!\n\n이미지가 너무 커서 저장할 수 없어요.\n\n해결 방법:\n1. 이미지 크기를 줄여주세요\n2. 또는 Supabase 설정을 확인해주세요\n\n에러: ${errorMsg}\n\n계속 진행할까요?`
+            `❌ 저장 실패!\n\n로컬 저장소 용량이 부족해요.\n\n해결 방법:\n1. 브라우저 캐시/데이터 삭제\n2. 이미지 크기를 줄여주세요\n3. Supabase 설정을 확인해주세요\n\n에러: ${errorMsg}\n\n계속 진행할까요?`
           );
           if (!proceed) return;
         } else {
