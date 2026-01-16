@@ -52,37 +52,56 @@ function ProjectDetailPageInner({ roomCode }: { roomCode: string }) {
 
   const project = useMemo(() => {
     if (!slug) return null;
-    // 우선순위: userProjects > remoteProjects > 기본 projects
-    return (
-      userProjects.find((p) => p.slug === slug) ??
-      remoteProjects?.find((p) => p.slug === slug) ??
-      projects.find((p) => p.slug === slug) ??
-      null
-    );
+    // 우선순위: remoteProjects (Supabase, 이미지 포함) > userProjects > 기본 projects
+    // Supabase 데이터가 최신이고 이미지가 포함되어 있으므로 우선 사용
+    const remote = remoteProjects?.find((p) => p.slug === slug);
+    if (remote) return remote;
+    const local = userProjects.find((p) => p.slug === slug);
+    if (local) return local;
+    return projects.find((p) => p.slug === slug) ?? null;
   }, [slug, userProjects, remoteProjects]);
 
   useEffect(() => {
     // 편집 시작 시 현재 프로젝트를 draft로 복사
+    // project가 변경될 때마다 draft도 업데이트 (Supabase에서 최신 데이터 로드 시)
     if (!project) {
       setDraft(null);
       setIsEditing(false);
       return;
     }
-    setDraft(project);
-  }, [project]);
+    // 편집 중이 아닐 때만 draft 업데이트 (편집 중에는 사용자 입력 보존)
+    if (!isEditing) {
+      setDraft(project);
+    }
+  }, [project, isEditing]);
 
   const saveDraft = async () => {
-    if (!draft) return;
+    if (!draft || !project) return;
+    
+    // draft의 memories와 기존 project의 memories 병합
+    // draft에는 새로 추가된 사진과 수정된 사진만 있고, 기존 사진은 제거되었을 수 있음
+    // 하지만 Supabase 저장 로직에서 기존 데이터를 보존하므로, draft의 memories를 그대로 사용
+    // (Supabase 저장 로직이 기존 memories와 비교하여 추가/업데이트/삭제 처리)
+    
+    const projectToSave: Project = {
+      ...draft,
+      // heroImage와 memories는 draft 그대로 사용
+      // Supabase 저장 로직에서 기존 데이터와 비교하여 처리
+    };
     
     // Supabase 동기화 (먼저 시도)
     try {
-      console.log('💾 Supabase 저장 시작...', { slug: draft.slug, memoriesCount: draft.memories.length });
-      await upsertProject(roomCode, draft);
+      console.log('💾 Supabase 저장 시작...', { 
+        slug: projectToSave.slug, 
+        memoriesCount: projectToSave.memories.length,
+        hasHeroImage: !!projectToSave.heroImage 
+      });
+      await upsertProject(roomCode, projectToSave);
       console.log('✅ Supabase 동기화 성공');
       
       // Supabase 저장 성공 시, LocalStorage에는 메타데이터만 저장 (dataURL 제외)
       // storage.ts의 saveUserProjects가 자동으로 dataURL을 제거함
-      upsertUserProject(draft);
+      upsertUserProject(projectToSave);
       
       alert('✅ 저장 완료! 다른 기기에서도 보일 거예요.');
     } catch (e: any) {
@@ -92,7 +111,7 @@ function ProjectDetailPageInner({ roomCode }: { roomCode: string }) {
       
       // Supabase 실패 시에도 LocalStorage에 저장 시도 (dataURL은 자동으로 제외됨)
       try {
-        upsertUserProject(draft); // storage.ts가 자동으로 dataURL 제거
+        upsertUserProject(projectToSave); // storage.ts가 자동으로 dataURL 제거
         alert(`⚠️ Supabase 동기화 실패했지만 로컬에는 저장했어요.\n\n에러: ${errorMsg}\n\n다른 기기에서는 보이지 않을 수 있어요.`);
       } catch (storageError: any) {
         if (storageError?.name === 'QuotaExceededError') {
@@ -111,6 +130,12 @@ function ProjectDetailPageInner({ roomCode }: { roomCode: string }) {
       const updated = await listProjects(roomCode);
       console.log('🔄 저장 후 Supabase 데이터 새로고침:', updated.length, '개');
       setRemoteProjects(updated);
+      
+      // 저장 후 최신 데이터로 draft 업데이트 (편집 모드 종료 전)
+      const updatedProject = updated.find(p => p.slug === draft.slug);
+      if (updatedProject) {
+        setDraft(updatedProject);
+      }
     } catch (e) {
       console.error('❌ 저장 후 데이터 새로고침 실패:', e);
     }

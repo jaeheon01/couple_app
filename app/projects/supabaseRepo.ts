@@ -153,34 +153,81 @@ export async function upsertProject(roomCode: RoomCode, project: Project) {
   const projectId = saved.id;
   console.log('✅ 프로젝트 저장 완료, ID:', projectId, 'room_code:', saved.room_code);
 
-  // memories는 단순화를 위해 "전체 교체" 방식 (동시 편집 충돌은 last-write-wins)
-  if (existing?.id) {
-    await supabase.from('memories').delete().eq('project_id', projectId);
+  // memories 저장: 기존 데이터를 보존하면서 업데이트
+  // 1. 기존 memories 불러오기
+  const { data: existingMemories, error: eMem } = await (supabase.from('memories') as any)
+    .select('*')
+    .eq('project_id', projectId);
+  if (eMem) {
+    console.error('❌ 기존 memories 조회 실패:', eMem);
+    // 조회 실패해도 계속 진행 (새 프로젝트일 수 있음)
   }
 
-  const memRows = project.memories.map((m, idx) => ({
-    project_id: projectId,
-    image_url: m.src,
-    caption: m.caption ?? null,
-    memory_date: m.date ?? null,
-    sort_order: idx,
-  }));
+  // image_url 전체를 키로 사용 (dataURL도 전체 사용)
+  const existingMemMap = new Map<string, DbMemory>();
+  if (existingMemories) {
+    for (const m of existingMemories as DbMemory[]) {
+      existingMemMap.set(m.image_url, m);
+    }
+  }
 
-  if (memRows.length) {
-    console.log(`💾 ${memRows.length}개 사진 저장 중...`);
-    console.log('📤 memories 테이블에 저장 시도 (첫 번째 사진 샘플):', {
-      project_id: memRows[0]?.project_id,
-      image_url_length: memRows[0]?.image_url?.length,
-      is_dataURL: memRows[0]?.image_url?.startsWith('data:'),
-    });
-    const { error: e2, data: insertedMemories } = await (supabase.from('memories') as any).insert(memRows).select('*');
+  // 2. 새로운 memories와 기존 memories 병합
+  const memRowsToInsert: any[] = [];
+  const memIdsToKeep = new Set<string>();
+
+  for (let idx = 0; idx < project.memories.length; idx++) {
+    const m = project.memories[idx];
+    const existing = existingMemMap.get(m.src);
+
+    if (existing) {
+      // 기존 메모리 업데이트 (caption, date, sort_order만)
+      memIdsToKeep.add(existing.id);
+      await (supabase.from('memories') as any)
+        .update({
+          caption: m.caption ?? null,
+          memory_date: m.date ?? null,
+          sort_order: idx,
+        })
+        .eq('id', existing.id);
+    } else {
+      // 새로운 메모리 추가
+      memRowsToInsert.push({
+        project_id: projectId,
+        image_url: m.src,
+        caption: m.caption ?? null,
+        memory_date: m.date ?? null,
+        sort_order: idx,
+      });
+    }
+  }
+
+  // 3. 새로운 memories 삽입
+  if (memRowsToInsert.length > 0) {
+    console.log(`💾 ${memRowsToInsert.length}개 새 사진 저장 중...`);
+    const { error: e2, data: insertedMemories } = await (supabase.from('memories') as any)
+      .insert(memRowsToInsert)
+      .select('*');
     if (e2) {
-      console.error('❌ 사진 저장 실패:', e2);
+      console.error('❌ 새 사진 저장 실패:', e2);
       console.error('상세 에러:', JSON.stringify(e2, null, 2));
       throw new Error(`사진 저장 실패: ${e2.message || JSON.stringify(e2)}`);
     }
-    console.log('✅ 사진 저장 완료, 저장된 개수:', insertedMemories?.length || memRows.length);
+    console.log('✅ 새 사진 저장 완료, 저장된 개수:', insertedMemories?.length || memRowsToInsert.length);
   }
+
+  // 4. 더 이상 사용되지 않는 memories 삭제 (draft에 없는 것들)
+  if (existingMemories && existingMemories.length > 0) {
+    const idsToDelete = (existingMemories as DbMemory[])
+      .filter(m => !memIdsToKeep.has(m.id))
+      .map(m => m.id);
+    if (idsToDelete.length > 0) {
+      console.log(`🗑️ ${idsToDelete.length}개 사진 삭제 중...`);
+      await (supabase.from('memories') as any).delete().in('id', idsToDelete);
+      console.log('✅ 사진 삭제 완료');
+    }
+  }
+
+  console.log(`✅ 총 ${project.memories.length}개 사진 처리 완료 (새로 추가: ${memRowsToInsert.length}, 업데이트: ${memIdsToKeep.size - memRowsToInsert.length}, 삭제: ${existingMemories ? (existingMemories as DbMemory[]).length - memIdsToKeep.size : 0})`);
 
   return projectId;
 }
