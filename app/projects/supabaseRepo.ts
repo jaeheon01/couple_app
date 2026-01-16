@@ -58,7 +58,11 @@ export async function ensureRoom(code: RoomCode) {
   if (!supabase) throw new Error('Supabase 환경변수가 설정되지 않았어요.');
 
   // upsert rooms
-  await supabase.from('rooms').upsert({ code }).select('code').single();
+  await supabase
+    .from('rooms')
+    .upsert({ code } as { code: string }, { onConflict: 'code' })
+    .select('code')
+    .single();
 }
 
 export async function listProjects(roomCode: RoomCode) {
