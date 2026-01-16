@@ -9,7 +9,7 @@ import { projects } from './projects/data';
 import type { Project } from './projects/data';
 import { deleteUserProject, loadUserProjects } from './projects/storage';
 import RoomGate from './projects/RoomGate';
-import { deleteProject, listProjects, subscribeRoom } from './projects/supabaseRepo';
+import { deleteProject, loadCoupleMessages, listProjects, saveCoupleMessages, subscribeRoom } from './projects/supabaseRepo';
 
 type CoupleMessages = {
   jaeheon: string;
@@ -18,7 +18,7 @@ type CoupleMessages = {
 
 const COUPLE_MESSAGES_KEY = 'jaeheon-portfolio-couple-messages-v1';
 
-function loadCoupleMessages(): CoupleMessages {
+function loadCoupleMessagesLocal(): CoupleMessages {
   if (typeof window === 'undefined')
     return {
       jaeheon: '은지야 우리 세상에서 가장 예쁜 커플이 되자! 힘들고 지치는 상황에서도 서로 힘을 나누고 함께 행복하게 지내자. 사랑해❤️',
@@ -37,7 +37,7 @@ function loadCoupleMessages(): CoupleMessages {
   };
 }
 
-function saveCoupleMessages(messages: CoupleMessages) {
+function saveCoupleMessagesLocal(messages: CoupleMessages) {
   if (typeof window === 'undefined') return;
   window.localStorage.setItem(COUPLE_MESSAGES_KEY, JSON.stringify(messages));
 }
@@ -45,7 +45,7 @@ function saveCoupleMessages(messages: CoupleMessages) {
 function HomeInner({ roomCode }: { roomCode: string }) {
   const [userProjects, setUserProjects] = useState<Project[]>([]);
   const [remoteProjects, setRemoteProjects] = useState<Project[] | null>(null);
-  const [coupleMessages, setCoupleMessages] = useState<CoupleMessages>(loadCoupleMessages());
+  const [coupleMessages, setCoupleMessages] = useState<CoupleMessages>(loadCoupleMessagesLocal());
   const [isEditingCouple, setIsEditingCouple] = useState(false);
   const [editDraft, setEditDraft] = useState<CoupleMessages>(coupleMessages);
 
@@ -223,10 +223,31 @@ function HomeInner({ roomCode }: { roomCode: string }) {
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          saveCoupleMessages(editDraft);
-                          setCoupleMessages(editDraft);
-                          setIsEditingCouple(false);
+                        onClick={async () => {
+                          try {
+                            // Supabase에 저장
+                            await saveCoupleMessages(roomCode, editDraft);
+                            console.log('✅ Supabase couple_messages 저장 성공');
+                            
+                            // LocalStorage에도 저장
+                            saveCoupleMessagesLocal(editDraft);
+                            
+                            // 상태 업데이트
+                            setCoupleMessages(editDraft);
+                            setIsEditingCouple(false);
+                            
+                            alert('✅ 저장 완료! 다른 기기에서도 보일 거예요.');
+                          } catch (e: any) {
+                            console.error('❌ Supabase couple_messages 저장 실패:', e);
+                            const errorMsg = e?.message || String(e);
+                            
+                            // Supabase 실패 시에도 LocalStorage에 저장
+                            saveCoupleMessagesLocal(editDraft);
+                            setCoupleMessages(editDraft);
+                            setIsEditingCouple(false);
+                            
+                            alert(`⚠️ Supabase 동기화 실패했지만 로컬에는 저장했어요.\n\n에러: ${errorMsg}\n\n다른 기기에서는 보이지 않을 수 있어요.`);
+                          }
                         }}
                         className="text-sm text-rose-600 hover:text-rose-700 font-medium"
                       >

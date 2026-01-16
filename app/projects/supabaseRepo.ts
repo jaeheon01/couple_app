@@ -22,6 +22,11 @@ export type DbProject = {
   updated_at: string;
 };
 
+export type CoupleMessages = {
+  jaeheon: string;
+  eunji: string;
+};
+
 export type DbMemory = {
   id: string;
   project_id: string;
@@ -280,6 +285,61 @@ export async function deleteProject(roomCode: RoomCode, slug: string) {
   }
 
   console.log('✅ 프로젝트 삭제 완료');
+}
+
+export async function loadCoupleMessages(roomCode: RoomCode): Promise<CoupleMessages | null> {
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+
+  try {
+    const { data, error } = await (supabase.from('rooms') as any)
+      .select('couple_messages')
+      .eq('code', roomCode)
+      .maybeSingle();
+
+    if (error) {
+      console.error('❌ couple_messages 로드 실패:', error);
+      return null;
+    }
+
+    if (data?.couple_messages) {
+      const parsed = JSON.parse(data.couple_messages);
+      if (parsed.jaeheon && parsed.eunji) {
+        console.log('✅ Supabase에서 couple_messages 로드 성공');
+        return parsed;
+      }
+    }
+
+    return null;
+  } catch (e) {
+    console.error('❌ couple_messages 파싱 실패:', e);
+    return null;
+  }
+}
+
+export async function saveCoupleMessages(roomCode: RoomCode, messages: CoupleMessages) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new Error('Supabase 환경변수가 설정되지 않았어요.');
+
+  console.log('💾 couple_messages 저장 시작...', { roomCode });
+
+  // rooms 테이블에 couple_messages 필드가 있는지 확인하고 업데이트
+  const { error } = await (supabase.from('rooms') as any)
+    .upsert(
+      {
+        code: roomCode,
+        couple_messages: JSON.stringify(messages),
+      },
+      { onConflict: 'code' }
+    )
+    .select();
+
+  if (error) {
+    console.error('❌ couple_messages 저장 실패:', error);
+    throw new Error(`couple_messages 저장 실패: ${error.message || JSON.stringify(error)}`);
+  }
+
+  console.log('✅ couple_messages 저장 완료');
 }
 
 export async function uploadMemoryImage(roomCode: RoomCode, file: File) {
