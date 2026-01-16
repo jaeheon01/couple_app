@@ -134,13 +134,15 @@ export async function upsertProject(roomCode: RoomCode, project: Project) {
     story: project.story ?? null,
   };
 
+  console.log('📤 projects 테이블에 저장 시도:', payload);
   const result = await (supabase.from('projects') as any)
     .upsert(payload, { onConflict: 'room_code,slug' })
     .select('*')
     .single();
   if (result.error) {
     console.error('❌ projects upsert 실패:', result.error);
-    throw result.error;
+    console.error('상세 에러:', JSON.stringify(result.error, null, 2));
+    throw new Error(`프로젝트 저장 실패: ${result.error.message || JSON.stringify(result.error)}`);
   }
 
   const saved = result.data as DbProject;
@@ -149,7 +151,7 @@ export async function upsertProject(roomCode: RoomCode, project: Project) {
     throw new Error('프로젝트 저장 후 ID를 받지 못했어요.');
   }
   const projectId = saved.id;
-  console.log('✅ 프로젝트 저장 완료, ID:', projectId);
+  console.log('✅ 프로젝트 저장 완료, ID:', projectId, 'room_code:', saved.room_code);
 
   // memories는 단순화를 위해 "전체 교체" 방식 (동시 편집 충돌은 last-write-wins)
   if (existing?.id) {
@@ -166,12 +168,18 @@ export async function upsertProject(roomCode: RoomCode, project: Project) {
 
   if (memRows.length) {
     console.log(`💾 ${memRows.length}개 사진 저장 중...`);
-    const { error: e2 } = await (supabase.from('memories') as any).insert(memRows);
+    console.log('📤 memories 테이블에 저장 시도 (첫 번째 사진 샘플):', {
+      project_id: memRows[0]?.project_id,
+      image_url_length: memRows[0]?.image_url?.length,
+      is_dataURL: memRows[0]?.image_url?.startsWith('data:'),
+    });
+    const { error: e2, data: insertedMemories } = await (supabase.from('memories') as any).insert(memRows).select('*');
     if (e2) {
       console.error('❌ 사진 저장 실패:', e2);
-      throw e2;
+      console.error('상세 에러:', JSON.stringify(e2, null, 2));
+      throw new Error(`사진 저장 실패: ${e2.message || JSON.stringify(e2)}`);
     }
-    console.log('✅ 사진 저장 완료');
+    console.log('✅ 사진 저장 완료, 저장된 개수:', insertedMemories?.length || memRows.length);
   }
 
   return projectId;
