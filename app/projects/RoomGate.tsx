@@ -36,9 +36,10 @@ export default function RoomGate({
 
     try {
       await ensureRoom(code);
-      setRoomCode(code);
+      setRoomCode(code); // LocalStorage에 저장
       setRoomCodeState(code);
-    } catch {
+    } catch (e) {
+      console.error('룸 생성/조회 실패:', e);
       setError('룸을 만들거나 불러오는 데 실패했어요. 설정을 확인해 주세요.');
     }
   };

@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Project } from '../data';
 import { projects } from '../data';
 import { loadUserProjects, upsertUserProject } from '../storage';
-import { upsertProject } from '../supabaseRepo';
+import { listProjects, upsertProject } from '../supabaseRepo';
 import RoomGate from '../RoomGate';
 
 const MAX_IMAGE_BYTES = 2_500_000; // 2.5MB (dataURL은 더 커짐) - 너무 큰 파일은 브라우저 저장에 부담
@@ -26,6 +26,7 @@ function ProjectDetailPageInner({ roomCode }: { roomCode: string }) {
   const params = useParams<{ slug: string }>();
   const slug = params?.slug;
   const [userProjects, setUserProjects] = useState<Project[]>([]);
+  const [remoteProjects, setRemoteProjects] = useState<Project[] | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState<Project | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -34,14 +35,29 @@ function ProjectDetailPageInner({ roomCode }: { roomCode: string }) {
     setUserProjects(loadUserProjects());
   }, []);
 
+  useEffect(() => {
+    // Supabase에서 프로젝트 불러오기
+    listProjects(roomCode)
+      .then((projects) => {
+        console.log('✅ 상세 페이지: Supabase에서 프로젝트 로드 성공:', projects.length, '개');
+        setRemoteProjects(projects);
+      })
+      .catch((e) => {
+        console.error('❌ 상세 페이지: Supabase 프로젝트 로드 실패:', e);
+        setRemoteProjects(null); // 실패하면 null로 유지
+      });
+  }, [roomCode]);
+
   const project = useMemo(() => {
     if (!slug) return null;
+    // 우선순위: userProjects > remoteProjects > 기본 projects
     return (
       userProjects.find((p) => p.slug === slug) ??
+      remoteProjects?.find((p) => p.slug === slug) ??
       projects.find((p) => p.slug === slug) ??
       null
     );
-  }, [slug, userProjects]);
+  }, [slug, userProjects, remoteProjects]);
 
   useEffect(() => {
     // 편집 시작 시 현재 프로젝트를 draft로 복사
