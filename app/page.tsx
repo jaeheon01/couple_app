@@ -45,6 +45,7 @@ function saveCoupleMessagesLocal(messages: CoupleMessages) {
 function HomeInner({ roomCode }: { roomCode: string }) {
   const [userProjects, setUserProjects] = useState<Project[]>([]);
   const [remoteProjects, setRemoteProjects] = useState<Project[] | null>(null);
+  const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [coupleMessages, setCoupleMessages] = useState<CoupleMessages>(loadCoupleMessagesLocal());
   const [isEditingCouple, setIsEditingCouple] = useState(false);
   const [editDraft, setEditDraft] = useState<CoupleMessages>(coupleMessages);
@@ -64,15 +65,19 @@ function HomeInner({ roomCode }: { roomCode: string }) {
 
   useEffect(() => {
     let unsub: (() => void) | null = null;
+    setIsLoadingProjects(true);
 
     listProjects(roomCode)
       .then((projects) => {
         console.log('✅ Supabase에서 프로젝트 로드 성공:', projects.length, '개');
         setRemoteProjects(projects);
+        setIsLoadingProjects(false);
       })
       .catch((e) => {
         console.error('❌ Supabase 프로젝트 로드 실패:', e);
-        setRemoteProjects(projects); // 기본 데이터로 fallback
+        // 실패 시에도 빈 배열로 설정하여 LocalStorage 데이터가 표시되도록 함
+        setRemoteProjects([]);
+        setIsLoadingProjects(false);
       });
 
     unsub = subscribeRoom(roomCode, async () => {
@@ -93,13 +98,21 @@ function HomeInner({ roomCode }: { roomCode: string }) {
   const allProjects = useMemo(() => {
     const map = new Map<string, Project>();
     
+    // 로딩 중이면 빈 배열 반환 (로딩 완료 후 다시 계산됨)
+    if (isLoadingProjects && remoteProjects === null) {
+      console.log('⏳ 프로젝트 로딩 중...');
+      return [];
+    }
+    
     // 1. Supabase 프로젝트 먼저 추가 (최신 데이터)
+    // remoteProjects가 null이면 빈 배열로 처리 (로딩 실패 또는 데이터 없음)
     const base = remoteProjects ?? [];
     for (const p of base) {
       map.set(p.slug, p);
     }
     
     // 2. LocalStorage 프로젝트 추가 (Supabase에 없는 것만, 또는 Supabase 데이터 보완)
+    // 다른 컴퓨터에서는 LocalStorage가 비어있을 수 있으므로 Supabase 데이터만 사용
     for (const p of userProjects) {
       if (!map.has(p.slug)) {
         // Supabase에 없으면 LocalStorage 데이터 사용
@@ -111,14 +124,15 @@ function HomeInner({ roomCode }: { roomCode: string }) {
     }
     
     // 3. 기본 프로젝트 추가 (둘 다 없을 때만)
-    if (map.size === 0) {
+    // 로딩이 완료되었고 (isLoadingProjects === false) 데이터가 없을 때만 기본 프로젝트 표시
+    if (!isLoadingProjects && map.size === 0) {
       for (const p of projects) map.set(p.slug, p);
     }
     
     const result = Array.from(map.values());
-    console.log('📋 allProjects:', result.length, '개', result.map(p => p.slug));
+    console.log('📋 allProjects:', result.length, '개', result.map(p => p.slug), '로딩중:', isLoadingProjects);
     return result;
-  }, [userProjects, remoteProjects]);
+  }, [userProjects, remoteProjects, isLoadingProjects]);
 
   const handleDeleteProject = async (slug: string, e: React.MouseEvent) => {
     e.preventDefault();
@@ -306,6 +320,22 @@ function HomeInner({ roomCode }: { roomCode: string }) {
               우리의 소중한 추억
             </h2>
           </FadeInSection>
+          {isLoadingProjects ? (
+            <div className="text-center py-12">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-rose-500"></div>
+              <p className="mt-4 text-gray-600">추억을 불러오는 중...</p>
+            </div>
+          ) : allProjects.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-gray-600 mb-4">아직 저장된 추억이 없어요.</p>
+              <Link
+                href="/projects/new"
+                className="inline-block rounded-full bg-rose-500 px-6 py-3 font-semibold text-white hover:bg-rose-600"
+              >
+                첫 추억 만들기
+              </Link>
+            </div>
+          ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {allProjects.map((project, idx) => (
               <FadeInSection key={project.slug} delay={idx * 100}>
@@ -425,6 +455,7 @@ function HomeInner({ roomCode }: { roomCode: string }) {
               </Link>
             </FadeInSection>
           </div>
+          )}
         </div>
       </section>
 
