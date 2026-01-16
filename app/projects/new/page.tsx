@@ -5,8 +5,8 @@ import { useMemo, useRef, useState } from 'react';
 
 import type { Project } from '../data';
 import { slugifyKo, upsertUserProject } from '../storage';
-import { upsertProject } from './supabaseRepo';
-import RoomGate from './RoomGate';
+import { upsertProject } from '../supabaseRepo';
+import RoomGate from '../RoomGate';
 
 const MAX_IMAGE_BYTES = 2_500_000; // 2.5MB
 
