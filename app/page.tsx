@@ -53,6 +53,15 @@ function HomeInner({ roomCode }: { roomCode: string }) {
     setUserProjects(loadUserProjects());
   }, []);
 
+  // LocalStorage 변경 감지 (다른 탭에서 저장했을 때)
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setUserProjects(loadUserProjects());
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   useEffect(() => {
     let unsub: (() => void) | null = null;
 
@@ -83,20 +92,32 @@ function HomeInner({ roomCode }: { roomCode: string }) {
 
   const allProjects = useMemo(() => {
     const map = new Map<string, Project>();
-    // LocalStorage 프로젝트 우선 (같은 slug면 덮어씀)
-    for (const p of userProjects) map.set(p.slug, p);
-    // Supabase 프로젝트 추가 (LocalStorage에 없는 것만)
+    
+    // 1. Supabase 프로젝트 먼저 추가 (최신 데이터)
     const base = remoteProjects ?? [];
     for (const p of base) {
+      map.set(p.slug, p);
+    }
+    
+    // 2. LocalStorage 프로젝트 추가 (Supabase에 없는 것만, 또는 Supabase 데이터 보완)
+    for (const p of userProjects) {
       if (!map.has(p.slug)) {
+        // Supabase에 없으면 LocalStorage 데이터 사용
         map.set(p.slug, p);
+      } else {
+        // Supabase에 있으면 Supabase 데이터 사용 (이미지 포함)
+        // LocalStorage는 dataURL이 제거되어 있으므로 Supabase 우선
       }
     }
-    // Supabase에 데이터가 없으면 기본 프로젝트 표시
-    if (map.size === 0 && !remoteProjects) {
+    
+    // 3. 기본 프로젝트 추가 (둘 다 없을 때만)
+    if (map.size === 0) {
       for (const p of projects) map.set(p.slug, p);
     }
-    return Array.from(map.values());
+    
+    const result = Array.from(map.values());
+    console.log('📋 allProjects:', result.length, '개', result.map(p => p.slug));
+    return result;
   }, [userProjects, remoteProjects]);
 
   return (
@@ -107,7 +128,7 @@ function HomeInner({ roomCode }: { roomCode: string }) {
               <div className="max-w-4xl mx-auto text-center">
                 <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-rose-500 via-pink-500 to-violet-500 bg-clip-text text-transparent">
                   이재헌 ❤️ 정은지
-                </h1>
+          </h1>
                 <p className="text-xl md:text-2xl text-gray-800 mb-4">
                   인생의 동반자로써 같이 미래를 걸어갈 예쁜 커플
                 </p>
@@ -253,7 +274,7 @@ function HomeInner({ roomCode }: { roomCode: string }) {
                         />
                       ) : (
                         // URL은 Next.js Image 사용
-                        <Image
+            <Image
                           src={project.heroImage}
                           alt={project.title}
                           fill

@@ -30,6 +30,8 @@ function ProjectDetailPageInner({ roomCode }: { roomCode: string }) {
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState<Project | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  
+  // listProjects import 추가 필요
 
   useEffect(() => {
     setUserProjects(loadUserProjects());
@@ -103,6 +105,16 @@ function ProjectDetailPageInner({ roomCode }: { roomCode: string }) {
     }
     
     setUserProjects(loadUserProjects());
+    
+    // Supabase에서 최신 데이터 다시 불러오기
+    try {
+      const updated = await listProjects(roomCode);
+      console.log('🔄 저장 후 Supabase 데이터 새로고침:', updated.length, '개');
+      setRemoteProjects(updated);
+    } catch (e) {
+      console.error('❌ 저장 후 데이터 새로고침 실패:', e);
+    }
+    
     setIsEditing(false);
   };
 
