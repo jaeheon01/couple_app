@@ -202,7 +202,7 @@ function ProjectDetailPageInner({ roomCode }: { roomCode: string }) {
           ) : (
             <div className="space-y-8">
               <div className="rounded-2xl border border-black/5 bg-white/80 backdrop-blur shadow-xl overflow-hidden">
-                <div className="relative h-48 overflow-hidden">
+                <div className="relative h-80 md:h-96 overflow-hidden">
                   {isEditing && draft ? (
                     <>
                       {draft.heroImage ? (
@@ -371,13 +371,13 @@ function ProjectDetailPageInner({ roomCode }: { roomCode: string }) {
                   </div>
                 ) : null}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 gap-6">
                   {(isEditing ? draft?.memories : project.memories)?.map((img, idx) => (
                     <div
                       key={`${img.src}-${idx}`}
                       className="rounded-xl bg-white/90 border border-black/5 shadow-sm overflow-hidden"
                     >
-                      <div className="relative aspect-[16/10]">
+                      <div className="relative aspect-[4/3] md:aspect-[16/9]">
                         <Image
                           src={img.src}
                           alt={img.alt}

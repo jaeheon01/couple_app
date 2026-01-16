@@ -214,7 +214,7 @@ function HomeInner({ roomCode }: { roomCode: string }) {
                   href={`/projects/${project.slug}`}
                   className="block bg-white/80 backdrop-blur rounded-xl shadow-lg hover:shadow-2xl transition-shadow duration-300 overflow-hidden group ring-1 ring-black/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-400 focus-visible:ring-offset-2 focus-visible:ring-offset-rose-50"
                 >
-                  <div className="relative h-48 overflow-hidden">
+                  <div className="relative h-64 md:h-80 overflow-hidden">
                     {project.heroImage ? (
                       <Image
                         src={project.heroImage}
