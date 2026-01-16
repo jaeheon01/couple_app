@@ -234,13 +234,43 @@ function HomeInner({ roomCode }: { roomCode: string }) {
                 >
                   <div className="relative h-64 md:h-80 overflow-hidden">
                     {project.heroImage ? (
-                      <Image
-                        src={project.heroImage}
-                        alt={project.title}
-                        fill
-                        className="object-cover group-hover:scale-105 transition-transform duration-300"
-                        sizes="(max-width: 768px) 100vw, 50vw"
-                      />
+                      project.heroImage.startsWith('data:') ? (
+                        // dataURL은 일반 img 태그 사용
+                        <img
+                          src={project.heroImage}
+                          alt={project.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                            const parent = target.parentElement;
+                            if (parent && !parent.querySelector(`.${project.heroGradientClassName.split(' ')[0]}`)) {
+                              const fallback = document.createElement('div');
+                              fallback.className = `h-full w-full ${project.heroGradientClassName}`;
+                              parent.appendChild(fallback);
+                            }
+                          }}
+                        />
+                      ) : (
+                        // URL은 Next.js Image 사용
+                        <Image
+                          src={project.heroImage}
+                          alt={project.title}
+                          fill
+                          className="object-cover group-hover:scale-105 transition-transform duration-300"
+                          sizes="(max-width: 768px) 100vw, 50vw"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                            const parent = target.parentElement;
+                            if (parent && !parent.querySelector(`.${project.heroGradientClassName.split(' ')[0]}`)) {
+                              const fallback = document.createElement('div');
+                              fallback.className = `h-full w-full ${project.heroGradientClassName}`;
+                              parent.appendChild(fallback);
+                            }
+                          }}
+                        />
+                      )
                     ) : (
                       <div className={`h-full w-full ${project.heroGradientClassName}`} />
                     )}

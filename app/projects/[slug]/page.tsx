@@ -71,20 +71,42 @@ function ProjectDetailPageInner({ roomCode }: { roomCode: string }) {
 
   const saveDraft = async () => {
     if (!draft) return;
-    upsertUserProject(draft); // 기본 프로젝트도 override로 저장됨
     
-    // Supabase 동기화
+    // Supabase 동기화 (먼저 시도)
     try {
       console.log('💾 Supabase 저장 시작...', { slug: draft.slug, memoriesCount: draft.memories.length });
       await upsertProject(roomCode, draft);
       console.log('✅ Supabase 동기화 성공');
+      
+      // Supabase 저장 성공 시, LocalStorage에는 메타데이터만 저장 (dataURL 제외)
+      const lightweightDraft = {
+        ...draft,
+        memories: draft.memories.map(m => ({
+          ...m,
+          src: m.src.startsWith('data:') ? '' : m.src, // dataURL은 제외
+        })),
+        heroImage: draft.heroImage?.startsWith('data:') ? undefined : draft.heroImage,
+      };
+      upsertUserProject(lightweightDraft);
+      
       alert('✅ 저장 완료! 다른 기기에서도 보일 거예요.');
     } catch (e: any) {
       console.error('❌ Supabase 동기화 실패:', e);
       console.error('에러 상세:', JSON.stringify(e, null, 2));
       const errorMsg = e?.message || String(e);
-      alert(`❌ Supabase 동기화 실패:\n${errorMsg}\n\n콘솔을 확인해주세요.`);
-      // LocalStorage에는 저장되었으므로 계속 진행
+      
+      // Supabase 실패 시에만 LocalStorage에 저장 시도 (용량 초과 가능)
+      try {
+        upsertUserProject(draft);
+        alert(`⚠️ Supabase 동기화 실패했지만 로컬에는 저장했어요.\n\n에러: ${errorMsg}\n\n다른 기기에서는 보이지 않을 수 있어요.`);
+      } catch (storageError: any) {
+        if (storageError?.name === 'QuotaExceededError') {
+          alert(`❌ 저장 실패!\n\n이미지가 너무 커서 저장할 수 없어요.\n\n해결 방법:\n1. 이미지 크기를 줄여주세요\n2. 또는 Supabase 설정을 확인해주세요\n\n에러: ${errorMsg}`);
+        } else {
+          alert(`❌ 저장 실패:\n${errorMsg}\n\n콘솔을 확인해주세요.`);
+        }
+        throw e; // 원래 에러를 다시 throw
+      }
     }
     
     setUserProjects(loadUserProjects());
@@ -399,14 +421,32 @@ function ProjectDetailPageInner({ roomCode }: { roomCode: string }) {
                       key={`${img.src}-${idx}`}
                       className="rounded-xl bg-white/90 border border-black/5 shadow-sm overflow-hidden"
                     >
-                      <div className="relative aspect-[4/3] md:aspect-[16/9]">
-                        <Image
-                          src={img.src}
-                          alt={img.alt}
-                          fill
-                          className="object-cover"
-                          priority={idx === 0}
-                        />
+                      <div className="relative aspect-[4/3] md:aspect-[16/9] bg-gray-100">
+                        {img.src.startsWith('data:') ? (
+                          // dataURL은 일반 img 태그 사용
+                          <img
+                            src={img.src}
+                            alt={img.alt}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          // URL은 Next.js Image 사용
+                          <Image
+                            src={img.src}
+                            alt={img.alt}
+                            fill
+                            className="object-cover"
+                            priority={idx === 0}
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                            }}
+                          />
+                        )}
                       </div>
                       <div className="p-4">
                         {!isEditing || !draft ? (
