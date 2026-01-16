@@ -60,8 +60,10 @@ function ProjectDetailPageInner({ roomCode }: { roomCode: string }) {
     // Supabase 동기화
     try {
       await upsertProject(roomCode, draft);
+      console.log('✅ Supabase 동기화 성공');
     } catch (e) {
-      console.error('Supabase 동기화 실패:', e);
+      console.error('❌ Supabase 동기화 실패:', e);
+      alert('Supabase 동기화에 실패했어요. 다른 기기에서 보이지 않을 수 있어요. 콘솔을 확인해주세요.');
       // LocalStorage에는 저장되었으므로 계속 진행
     }
     

@@ -117,9 +117,13 @@ function NewProjectPageInner({ roomCode }: { roomCode: string }) {
     // Supabase 동기화
     try {
       await upsertProject(roomCode, project);
+      console.log('✅ Supabase 동기화 성공');
     } catch (e) {
-      console.error('Supabase 동기화 실패:', e);
-      // LocalStorage에는 저장되었으므로 계속 진행
+      console.error('❌ Supabase 동기화 실패:', e);
+      const proceed = confirm(
+        'Supabase 동기화에 실패했어요. 다른 기기에서 보이지 않을 수 있어요.\n\n계속 진행할까요?'
+      );
+      if (!proceed) return;
     }
     
     window.location.href = `/projects/${project.slug}`;

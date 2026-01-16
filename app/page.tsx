@@ -57,14 +57,22 @@ function HomeInner({ roomCode }: { roomCode: string }) {
     let unsub: (() => void) | null = null;
 
     listProjects(roomCode)
-      .then(setRemoteProjects)
-      .catch(() => setRemoteProjects(projects));
+      .then((projects) => {
+        console.log('✅ Supabase에서 프로젝트 로드 성공:', projects.length, '개');
+        setRemoteProjects(projects);
+      })
+      .catch((e) => {
+        console.error('❌ Supabase 프로젝트 로드 실패:', e);
+        setRemoteProjects(projects); // 기본 데이터로 fallback
+      });
 
     unsub = subscribeRoom(roomCode, async () => {
       try {
-        setRemoteProjects(await listProjects(roomCode));
-      } catch {
-        // ignore
+        const updated = await listProjects(roomCode);
+        console.log('🔄 Supabase 실시간 업데이트:', updated.length, '개');
+        setRemoteProjects(updated);
+      } catch (e) {
+        console.error('❌ Supabase 실시간 업데이트 실패:', e);
       }
     });
 

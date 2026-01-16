@@ -68,22 +68,29 @@ export async function listProjects(roomCode: RoomCode) {
   const supabase = getSupabaseClient();
   if (!supabase) throw new Error('Supabase 환경변수가 설정되지 않았어요.');
 
-  const { data: ps, error: e1 } = await supabase
-    .from('projects')
+  const { data: ps, error: e1 } = await (supabase.from('projects') as any)
     .select('*')
     .eq('room_code', roomCode)
     .order('updated_at', { ascending: false });
-  if (e1) throw e1;
+  if (e1) {
+    console.error('❌ projects 조회 실패:', e1);
+    throw e1;
+  }
 
-  const projects = ps as DbProject[];
-  if (!projects.length) return [];
+  const projects = (ps as DbProject[]) ?? [];
+  if (!projects.length) {
+    console.log('📭 Supabase에 프로젝트가 없어요');
+    return [];
+  }
 
   const ids = projects.map((p) => p.id);
-  const { data: ms, error: e2 } = await supabase
-    .from('memories')
+  const { data: ms, error: e2 } = await (supabase.from('memories') as any)
     .select('*')
     .in('project_id', ids);
-  if (e2) throw e2;
+  if (e2) {
+    console.error('❌ memories 조회 실패:', e2);
+    throw e2;
+  }
 
   const memories = (ms as DbMemory[]) ?? [];
   const byProject = new Map<string, DbMemory[]>();
@@ -93,19 +100,26 @@ export async function listProjects(roomCode: RoomCode) {
     byProject.set(m.project_id, arr);
   }
 
-  return projects.map((p) => dbProjectToUi(p, byProject.get(p.id) ?? []));
+  const result = projects.map((p) => dbProjectToUi(p, byProject.get(p.id) ?? []));
+  console.log(`✅ ${result.length}개 프로젝트, 총 ${memories.length}개 사진 로드됨`);
+  return result;
 }
 
 export async function upsertProject(roomCode: RoomCode, project: Project) {
   const supabase = getSupabaseClient();
   if (!supabase) throw new Error('Supabase 환경변수가 설정되지 않았어요.');
 
+  console.log(`💾 프로젝트 저장 시작: ${project.slug}, 사진 ${project.memories.length}개`);
+
   const existingResult = await (supabase.from('projects') as any)
     .select('*')
     .eq('room_code', roomCode)
     .eq('slug', project.slug)
     .maybeSingle();
-  if (existingResult.error) throw existingResult.error;
+  if (existingResult.error) {
+    console.error('❌ 기존 프로젝트 조회 실패:', existingResult.error);
+    throw existingResult.error;
+  }
   const existing = existingResult.data as DbProject | null;
 
   const payload = {
@@ -143,8 +157,13 @@ export async function upsertProject(roomCode: RoomCode, project: Project) {
   }));
 
   if (memRows.length) {
+    console.log(`💾 ${memRows.length}개 사진 저장 중...`);
     const { error: e2 } = await (supabase.from('memories') as any).insert(memRows);
-    if (e2) throw e2;
+    if (e2) {
+      console.error('❌ 사진 저장 실패:', e2);
+      throw e2;
+    }
+    console.log('✅ 사진 저장 완료');
   }
 
   return projectId;
