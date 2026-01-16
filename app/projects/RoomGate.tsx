@@ -15,9 +15,10 @@ export default function RoomGate({
   const [input, setInput] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setRoomCodeState(getRoomCode());
-  }, []);
+  // LocalStorage에서 불러오지 않음 - 매번 코드 입력하도록
+  // useEffect(() => {
+  //   setRoomCodeState(getRoomCode());
+  // }, []);
 
   const submit = async () => {
     setError(null);
@@ -36,10 +37,12 @@ export default function RoomGate({
 
     try {
       await ensureRoom(code);
-      setRoomCode(code); // LocalStorage에 저장
+      // LocalStorage에 저장하지 않음 - 매번 코드 입력하도록
+      // setRoomCode(code);
       setRoomCodeState(code);
+      console.log('✅ 커플 코드 입력 완료:', code);
     } catch (e) {
-      console.error('룸 생성/조회 실패:', e);
+      console.error('❌ 룸 생성/조회 실패:', e);
       setError('룸을 만들거나 불러오는 데 실패했어요. 설정을 확인해 주세요.');
     }
   };
@@ -53,6 +56,8 @@ export default function RoomGate({
           <h1 className="text-2xl font-bold text-gray-900">커플 코드 입력</h1>
           <p className="mt-2 text-gray-700">
             둘이 같은 코드를 입력하면 같은 앨범을 보면서 동시에 편집/동기화돼요.
+            <br />
+            <span className="text-sm text-gray-600">(매번 접속할 때마다 코드를 입력해주세요)</span>
           </p>
 
           <div className="mt-6 space-y-3">
