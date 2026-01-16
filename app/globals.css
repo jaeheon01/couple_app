@@ -2,7 +2,7 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #111827;
 }
 
 @theme inline {
@@ -12,10 +12,11 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* 이벤트 페이지는 분위기상 다크 모드에서도 너무 어둡지 않게 "밝은" 톤을 유지합니다. */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #fff7fb;
+    --foreground: #111827;
   }
 }
 
