@@ -374,6 +374,11 @@ export function subscribeRoom(roomCode: RoomCode, onChange: () => void): () => v
       () => onChange()
     )
     .on('postgres_changes', { event: '*', schema: 'public', table: 'memories' }, () => onChange())
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'rooms', filter: `code=eq.${roomCode}` },
+      () => onChange()
+    )
     .subscribe();
 
   return () => {

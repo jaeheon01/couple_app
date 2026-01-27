@@ -19,7 +19,10 @@ export default function RoomGate({
   useEffect(() => {
     const saved = getRoomCode();
     if (saved) {
+      console.log('🔑 LocalStorage에서 roomCode 로드:', saved);
       setRoomCodeState(saved);
+    } else {
+      console.log('🔑 LocalStorage에 roomCode 없음 - 입력 필요');
     }
   }, []);
 

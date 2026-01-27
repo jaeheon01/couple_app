@@ -43,6 +43,7 @@ function saveCoupleMessagesLocal(messages: CoupleMessages) {
 }
 
 function HomeInner({ roomCode }: { roomCode: string }) {
+  console.log('🏠 HomeInner 렌더링, roomCode:', roomCode);
   const [userProjects, setUserProjects] = useState<Project[]>([]);
   const [remoteProjects, setRemoteProjects] = useState<Project[] | null>(null);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
@@ -52,7 +53,28 @@ function HomeInner({ roomCode }: { roomCode: string }) {
 
   useEffect(() => {
     setUserProjects(loadUserProjects());
-  }, []);
+    
+    // Supabase에서 couple_messages 불러오기
+    loadCoupleMessages(roomCode)
+      .then((remoteMessages) => {
+        if (remoteMessages) {
+          console.log('✅ Supabase에서 couple_messages 로드 성공:', remoteMessages);
+          setCoupleMessages(remoteMessages);
+          saveCoupleMessagesLocal(remoteMessages); // LocalStorage에도 저장
+        } else {
+          // Supabase에 없으면 LocalStorage에서 로드
+          const localMessages = loadCoupleMessagesLocal();
+          console.log('📝 LocalStorage에서 couple_messages 로드:', localMessages);
+          setCoupleMessages(localMessages);
+        }
+      })
+      .catch((e) => {
+        console.error('❌ Supabase couple_messages 로드 실패:', e);
+        // 실패 시 LocalStorage에서 로드
+        const localMessages = loadCoupleMessagesLocal();
+        setCoupleMessages(localMessages);
+      });
+  }, [roomCode]);
 
   // LocalStorage 변경 감지 (다른 탭에서 저장했을 때)
   useEffect(() => {
@@ -67,14 +89,17 @@ function HomeInner({ roomCode }: { roomCode: string }) {
     let unsub: (() => void) | null = null;
     setIsLoadingProjects(true);
 
+    console.log('🔄 Supabase 프로젝트 로드 시작...', { roomCode });
     listProjects(roomCode)
       .then((projects) => {
         console.log('✅ Supabase에서 프로젝트 로드 성공:', projects.length, '개');
+        console.log('📦 로드된 프로젝트:', projects.map(p => ({ slug: p.slug, title: p.title, memoriesCount: p.memories.length })));
         setRemoteProjects(projects);
         setIsLoadingProjects(false);
       })
       .catch((e) => {
         console.error('❌ Supabase 프로젝트 로드 실패:', e);
+        console.error('에러 상세:', JSON.stringify(e, null, 2));
         // 실패 시에도 빈 배열로 설정하여 LocalStorage 데이터가 표시되도록 함
         setRemoteProjects([]);
         setIsLoadingProjects(false);
@@ -82,9 +107,20 @@ function HomeInner({ roomCode }: { roomCode: string }) {
 
     unsub = subscribeRoom(roomCode, async () => {
       try {
+        // 프로젝트 업데이트
         const updated = await listProjects(roomCode);
         console.log('🔄 Supabase 실시간 업데이트:', updated.length, '개');
         setRemoteProjects(updated);
+        
+        // couple_messages도 실시간 업데이트
+        const updatedMessages = await loadCoupleMessages(roomCode);
+        if (updatedMessages) {
+          console.log('🔄 Supabase couple_messages 실시간 업데이트:', updatedMessages);
+          setCoupleMessages(updatedMessages);
+          saveCoupleMessagesLocal(updatedMessages); // LocalStorage에도 저장
+        } else {
+          console.log('⚠️ couple_messages 실시간 업데이트: 데이터 없음');
+        }
       } catch (e) {
         console.error('❌ Supabase 실시간 업데이트 실패:', e);
       }
@@ -131,6 +167,12 @@ function HomeInner({ roomCode }: { roomCode: string }) {
     
     const result = Array.from(map.values());
     console.log('📋 allProjects:', result.length, '개', result.map(p => p.slug), '로딩중:', isLoadingProjects);
+    console.log('📋 allProjects 상세:', result.map(p => ({ 
+      slug: p.slug, 
+      title: p.slug, 
+      hasHeroImage: !!p.heroImage,
+      memoriesCount: p.memories.length 
+    })));
     return result;
   }, [userProjects, remoteProjects, isLoadingProjects]);
 
