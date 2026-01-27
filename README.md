@@ -54,6 +54,9 @@ npm run dev
 
 ## 프로젝트 구조
 
+**📚 자세한 프로젝트 구조 설명은 [PROJECT_STRUCTURE.md](./PROJECT_STRUCTURE.md)를 참고하세요.**
+
+간단한 구조:
 ```
 app/
   ├── page.tsx              # 메인 랜딩 페이지
